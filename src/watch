@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# watch - a simple standin for the linux watch command
+# watch - a bare-bones standin for the linux watch command
 #
 # example:
 #   

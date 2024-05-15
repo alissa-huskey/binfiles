@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 #
-# plutil wrapper -- print to stdout by default, and add -i flag for modifying in place
+# plutil wrapper -- avoid accidentally overwriting plist files.
 #
-#    Normal plutil behavior is: when -o OUTFILE or -e EXTENSION option is missing when
-#    running a write command (-convert, -insert, -remove, -replace, and -extract)
-#    the original file is overwritten.
+#    The normal plutil behavior when running a write command is to overwrite
+#    the original file unless specified with the -o OUTFILE or -e EXTENSION
+#    options. To write to stdout you must pass the options: -o -
 #
-#    To avoid this:
-#       When running a write command, if -o option is missing, send to stdout
-#       instead of overwriting by sending the following additional option to plutil:
+#    That is... nuts.
 #
-#          -o -
+#    This script will not overwrite the original file unless you pass the
+#    new option: -i|--in-place 
 #
-#       Unless -i flag is passed.
+#    By default output will be printed to stdout.
+#
+#    All other options and arguments are passed through to the original plutil
+#    command, so everything else should be the same.
 #
 
 # usage: run cmd [arg...]
@@ -40,7 +42,7 @@ getargs() {
       -u|--dry-run)                               is_dryrun=true                    ;;
       -V|--verbose)                               is_verbose=true                   ;;
       -convert|-insert|-remove|-replace|-extract) is_write=true keep=true           ;;
-      -i)                                         has_inplace_flag=true             ;;
+      -i|--in-place)                              has_inplace_flag=true             ;;
       -o|-e)                                      has_outflag=true keep=true        ;;
       *)                                          keep=true                         ;;
     esac

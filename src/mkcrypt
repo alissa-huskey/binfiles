@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Create an encrypted empty plain text file
+# mkcrypt - create an empty encrypted text file
 #
 
 ME="${0##*/}"
@@ -68,7 +68,7 @@ usage() {
   local text
 
   define text <<EOF
-${ME} -- Create an encrypted empty plain text file
+${ME} -- create an empty encrypted text file
 
 Usage: ${ME} FILE[.gpg] [GPG_OPTS...]
 

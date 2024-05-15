@@ -12,7 +12,7 @@ HEADER_FILE="${TMPDIR}/header.txt"
 # cleanup -
 #    remove temp files on exit
 cleanup() {
-  # [[ -f "${JSON_FILE}" ]] && rm "${JSON_FILE}"
+  [[ -f "${JSON_FILE}" ]] && rm "${JSON_FILE}"
   [[ -f "${HEADER_FILE}" ]] && rm "${HEADER_FILE}"
 }
 trap cleanup EXIT

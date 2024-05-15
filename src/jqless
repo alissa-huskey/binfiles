@@ -1,5 +1,5 @@
 #!/bin/bash
-# jqless - less json files with jq
+# jqless - jq + less
 
 set -Eeo pipefail # fail on errors, even within pipes
 set +o posix      # using some noncompliant process redirection features
