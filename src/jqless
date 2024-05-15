@@ -19,7 +19,7 @@ main() {
     error "Filename required"
   fi
 
-  jq -C '.' ${1:+"$@"} | less -R
+  jq -C '.' ${1:+"$@"} | less -RF
 }
 
 main ${1:+"$@"}

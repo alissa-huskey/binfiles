@@ -106,6 +106,10 @@ parse() {
       -n|--dry-run)   is_dryrun=true          ;;
       *)
         if [[ -z "${name}" ]]; then
+
+          [[ "${arg}" =~ ^- ]] && \
+            abort "Unexpected option: '${arg}'.\n(Note: GPG_OPTS must go last.)"
+
           name="${arg%%.gpg}"    
         else
           gpgopts+=( "${arg}" )

@@ -129,7 +129,7 @@ fail() {
 error() {
   error_message ${1:+"$@"}
   echo
-  usage
+  usage noexit
   exit 1
 }
 

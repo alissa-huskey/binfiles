@@ -2,7 +2,7 @@ for lib in support assert file; do
   load $(brew --prefix bats-$lib)/lib/bats-$lib/load.bash
 done
 
-BATSLIB_TEMP_PRESERVE=1    # preserve temp dir on fail
+# BATSLIB_TEMP_PRESERVE=1    # preserve temp dir on fail
 HOST="http://localhost:1313"
 
 p() {
