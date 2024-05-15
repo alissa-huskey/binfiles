@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# 
+# vimack - open the files that match an ack search in nvim
+#
+
+nvim $(ack -l "${@}")

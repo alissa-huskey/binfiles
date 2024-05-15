@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# watch - a simple standin for the linux watch command
+#
+# example:
+#   
+#   watch date
+#
+
+while : ; do
+  clear
+  "$@"
+  sleep 1
+done

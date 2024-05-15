@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+#
+# plutil wrapper -- print to stdout by default, and add -i flag for modifying in place
+#
+#    Normal plutil behavior is: when -o OUTFILE or -e EXTENSION option is missing when
+#    running a write command (-convert, -insert, -remove, -replace, and -extract)
+#    the original file is overwritten.
+#
+#    To avoid this:
+#       When running a write command, if -o option is missing, send to stdout
+#       instead of overwriting by sending the following additional option to plutil:
+#
+#          -o -
+#
+#       Unless -i flag is passed.
+#
+
+# usage: run cmd [arg...]
+#   execute or print command and args
+run() {
+  # print command in dry run or verbose mode
+  if [[ $is_dryrun ]] || [[ $is_verbose ]]; then
+    printf "\e[2m> %s\e[0m\n" "${*//$TMPDIR/\$TMPDIR/}"
+  fi
+
+  # all done if this is a dry run
+  [[ $is_dryrun ]] && return
+
+  # otherwise, run the command
+  "$@" || exit $?
+}
+
+# usage: getargs
+#   parse arguments -- set variables based on options
+#                      and add all to be forwarded to the args array
+getargs() {
+  while [[ $# -ne 0 ]]; do
+    case "$1" in
+      -h|-*help)                                  do_help                           ;;
+      -u|--dry-run)                               is_dryrun=true                    ;;
+      -V|--verbose)                               is_verbose=true                   ;;
+      -convert|-insert|-remove|-replace|-extract) is_write=true keep=true           ;;
+      -i)                                         has_inplace_flag=true             ;;
+      -o|-e)                                      has_outflag=true keep=true        ;;
+      *)                                          keep=true                         ;;
+    esac
+
+    if [[ $keep ]]; then
+      args+=( "$1" )
+      unset keep
+    fi
+
+    shift
+  done
+}
+
+# usage: do_help
+#   run plutil help, plus print wrapper options then exit
+do_help() {
+  /usr/bin/plutil -help
+
+  cat <<HELP
+Options added by plutil wrapper:
+ -i                            modify original file in place
+ -V|--verbose                  print plutil command before running
+ -u|--dry-run                  don't run plutil command, just print it
+HELP
+
+  exit
+}
+
+main() {
+  local -a args
+
+  getargs ${1:+"$@"}
+
+  if ! [[ $has_inplace_flag ]] && [[ ! $has_outflag ]] && [[ $is_write ]]; then
+    args+=( -o - )
+  fi
+
+  run /usr/bin/plutil "${args[@]}"
+}
+
+main ${1:+"$@"}

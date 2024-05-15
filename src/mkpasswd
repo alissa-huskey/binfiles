@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# mkpasswd - generate a random password
+#            with a lenght of 10 characters, where
+#            the first 3 are alphabetical
+#            and the rest may include 0-9 !#$%@
+#
+# shellcheck disable=SC2206
+
+
+len=10
+minalpha=3
+
+alpha=( {A..Z} {a..z} )
+special=( '!' '#' '$' '%' '@' {0..9} )
+all=( ${alpha[*]} ${special[*]} )
+
+for(( i=0; i < len; i++)); do
+  if [[ $i -lt $minalpha ]]; then
+    k=$(( RANDOM % ${#alpha[@]} ))
+    char="${alpha[$k]}"
+  else
+    k=$(( RANDOM % ${#all[@]} ))
+    char="${all[$k]}"
+  fi
+  printf "%s" "$char"
+done
+
+printf "\n"
