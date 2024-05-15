@@ -56,7 +56,11 @@ teardown() {
 }
 
 @test "test success" {
-  run ./src/jqcurl "${HOST}/invalid.json"
-  assert_failure
-  assert_output --partial "JSON formatting is invalid."
+  run ./src/jqcurl "${HOST}/response.json"
+  assert_success
+  assert_line --regexp '"success".*: .*true.*,'
+  assert_line --regexp '"deck_id".*: .*"eok8wuy8lwgg".*,'
+  assert_line --regexp '"value".*: .*"JACK".*,'
+  assert_line --regexp '"suit".*: .*"SPADES"'
+  assert_line --regexp '"remaining".*: .*33'
 }

@@ -1,1 +1,17 @@
-{"a": 1, "b": 2, "c": 3}
+{
+  "success": true,
+  "deck_id": "eok8wuy8lwgg",
+  "cards": [
+    {
+      "code": "JS",
+      "image": "https://deckofcardsapi.com/static/img/JS.png",
+      "images": {
+        "svg": "https://deckofcardsapi.com/static/img/JS.svg",
+        "png": "https://deckofcardsapi.com/static/img/JS.png"
+      },
+      "value": "JACK",
+      "suit": "SPADES"
+    }
+  ],
+  "remaining": 33
+}

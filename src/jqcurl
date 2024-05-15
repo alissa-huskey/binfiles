@@ -177,10 +177,11 @@ main() {
   # save it if the user said to
   [[ ${outfile} ]] && cp "${JSON_FILE}" "${outfile}"
 
-  # show the contents
-  jq -C "." "${JSON_FILE}" | read -r json || abort "JSON formatting is invalid."
+  # validify the json
+  jq "true" "${JSON_FILE}" &> /dev/null || abort "JSON formatting is invalid."
 
-  printf "%s\n" "$json" | less -RF
+  # do the thing
+  jq -C "." "${JSON_FILE}" | less -RF
 }
 
 main ${1:+"$@"}

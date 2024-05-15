@@ -212,7 +212,9 @@ getargs() {
 }
 
 main() {
-  local tmp backup filepath flags=( "-M" ) script="." bkdir="${TMPDIR}jqfmt"
+  local tmp backup filepath flags=( "-M" ) script="." bkdir="${TMPDIR}jqfmt" suffix
+
+  suffix="${filepath##*/}"
 
   getargs ${1:+"$@"}
 
@@ -223,8 +225,8 @@ main() {
 
   mkdir -p $bkdir || exit $?
 
-  tmp=$(mktemp -p "$bkdir" --suffix="-$filepath")
-  backup=$(mktemp -p "$bkdir" --suffix="-${filepath%.*}-backup.json")
+  tmp=$(mktemp -p "$bkdir" --suffix="-$suffix")
+  backup=$(mktemp -p "$bkdir" --suffix="-${suffix}-backup.json")
 
   { [[ -n "$backup" ]] && [[ -f "$backup" ]] ; } || fail "Failed to create backup file"
   { [[ -n "$tmp" ]]    && [[ -f "$tmp" ]] ; }    || fail "Failed to create temp file"
