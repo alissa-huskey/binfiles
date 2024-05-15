@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# 
+# note: open a vim-notes note in (n)vim 
+#
+# see:
+# https://github.com/xolox/vim-notes
+#
+
+$EDITOR -c ":Note! ${1:-}"

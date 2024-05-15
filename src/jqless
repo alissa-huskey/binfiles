@@ -1,0 +1,25 @@
+#!/bin/bash
+# jqless - less json files with jq
+
+set -Eeo pipefail # fail on errors, even within pipes
+set +o posix      # using some noncompliant process redirection features
+
+# error -
+#    for user errors
+#    exit with code 1 and print error mesage
+# usage: error text [text...]
+error() {
+  printf "\e[31mError\e[0m %s\n" ${1:+"$@"} >&2
+  exit 1
+}
+
+main() {
+  # error if input is normal (not piped) and no arguments were passed
+  if [[ -t 0 ]] && [[ $# -eq 0 ]]; then
+    error "Filename required"
+  fi
+
+  jq -C '.' ${1:+"$@"} | less -R
+}
+
+main ${1:+"$@"}

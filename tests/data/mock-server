@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+# noqa: BLK100
+
+"""Start HTTP server serving files from tests/data at
+   http://localhost:1313
+
+   Equivelant to:
+   python -m http.server --directory tests/data
+"""
+
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import Path
+from sys import argv, stderr
+from time import time
+
+PORT = 1313
+DATADIR = Path(__file__).parent
+TIMEOUT = 20
+
+
+class CloseServer(BaseException): ...
+
+
+class Handler(SimpleHTTPRequestHandler):
+    """Request handler class that overwrites the directory"""
+
+    directory = DATADIR
+    protocol_version = "HTTP/1.0"
+
+    def __init__(self, *args, **kwargs):
+        kwargs.pop("directory", None)
+        super().__init__(*args, directory=str(self.directory), **kwargs)
+
+    def do_POST(self, *args, **kwargs):
+        if self.path == "/close":
+            self.send_response(200, "OK")
+            self.end_headers()
+            raise CloseServer()
+
+
+class BadHandler(Handler):
+    """Handler with a weird response header."""
+
+    def do_GET(self, *args, **kwargs):
+        """Respond with an empty Content-Type header."""
+        content = (DATADIR / self.path.strip("/")).read_text()
+        self.send_response(200)
+        self.send_header("Content-Type", "")
+        self.end_headers()
+        self.wfile.write(bytes(content, "utf-8"))
+
+
+class Server(HTTPServer):
+    """Expiring HTTP Server."""
+
+    timeout = TIMEOUT
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the server with a start time."""
+        self.started = time()
+        super().__init__(*args, **kwargs)
+
+    @property
+    def age(self):
+        """Return the number of seconds the server has been alive."""
+        return time() - self.started
+
+    def service_actions(self, *args, **kwargs):
+        """Time out if the server has expired."""
+        #  print(self.age, file=stderr)
+        if self.age > self.timeout:
+            self.stopped = time()
+            raise TimeoutError()
+        super().service_actions(*args, **kwargs)
+
+
+def run():
+    """Start the web server."""
+    handler = argv[-1] == "bad" and BadHandler or Handler  # noqa
+    start = time()
+
+    print(
+        f"[{handler.__name__}] Serving {handler.directory} "
+        f"at: http://localhost:{PORT}\n",
+        file=stderr
+    )
+
+    server = Server(("", PORT), handler)
+    try:
+        server.serve_forever()
+    except (KeyboardInterrupt, CloseServer, TimeoutError):
+        ...
+    finally:
+        server.server_close()
+        print("\nShutting down server.", file=stderr)
+
+
+if __name__ == "__main__":
+    run()

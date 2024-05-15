@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#
+# hr -- print a horizontal rule
+#
+
+ROOT=$(cd "${0%/*}/." && pwd -P)
+ME="${0%/*}"
+
+WIDTH=$(tput cols)
+MARGIN=0
+DEFAULT_CHAR="="
+
+usage() {
+  echo "Usage: hr [-m <margin>] [-w <width>] [<char>]"
+}
+
+while (($# > 0)); do
+  # echo $1
+  case $1 in
+    help|-h|--help)
+      usage
+      exit 0
+      ;;
+    -m|--margin)
+      if [[ $2 ]]; then
+        MARGIN=$2
+        shift
+      else
+        echo "invalid argument: -m|--margin requires margin value"
+        exit 1
+      fi
+      ;;
+    -w|--width)
+      if [[ $2 ]]; then
+        WIDTH=$2
+        shift
+      else
+        echo "invalid argument: -m|--margin requires margin value"
+        exit 1
+      fi
+      ;;
+    *)
+      if [[ -z "${CHAR}" ]]; then
+        CHAR="$1"
+      else
+        echo "invalid argument: $1"
+        exit 1
+      fi
+  esac
+  shift
+done
+
+if [[ $MARGIN -gt 0 ]]; then
+  WIDTH=$((WIDTH - MARGIN))
+fi
+
+eval "printf -- '${CHAR:-$DEFAULT_CHAR}%.0s' {1..${WIDTH}}"
+echo

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# manbrowse -- fancy manpages using lynx
+
+# print an error message and exit
+abort() {
+  printf "\033[31mError\033[0m %s\n" "$*"
+  exit 1
+}
+
+# exit if a requirement is not met
+require() {
+  local cmd="$1"
+  command -v "${cmd}" > /dev/null || abort "You don't have the required program: ${cmd}"
+}
+
+[[ $# -eq 1 ]] || abort "Exactly one argument required: PAGE."
+
+require lynx
+require groff
+
+groff -mandoc -T html $(man -w $1) | lynx -stdin

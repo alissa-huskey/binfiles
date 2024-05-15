@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# 
+# jqcurl -- fetch some json then view it with jq
+#
+
+ROOTDIR="$(cd "${0%/*}/." && pwd -P)"
+ME="${0##*/}"
+
+JSON_FILE="${TMPDIR}/content.json"
+HEADER_FILE="${TMPDIR}/header.txt"
+
+# cleanup -
+#    remove temp files on exit
+cleanup() {
+  # [[ -f "${JSON_FILE}" ]] && rm "${JSON_FILE}"
+  [[ -f "${HEADER_FILE}" ]] && rm "${HEADER_FILE}"
+}
+trap cleanup EXIT
+
+# abort -
+#    optionally print an error message and exit
+# usage: abort [MESSAGE...]
+abort() {
+  [[ $# -gt 0 ]] && printf "\033[31mError\033[0m %s\n" "$*" >&2
+  exit 1
+}
+
+# define -
+#    define a variable using heredocs
+# usage: define var <<EOF
+#        ...
+#        EOF
+define() {
+   IFS=$'\n' read -r -d '' ${1} || true
+}
+
+# run -
+#    print command in dry run or very verbose mode
+#    and execute if not in dry run mode
+#
+# usage: run CMD...
+#        run CMD... ">" outfile
+run() {
+  local num args=() out=/dev/stdout ec
+
+  # print command in dry run mode or very verbose mode
+  if [[ $is_dryrun ]] || [[ $is_verbose -eq 2 ]]; then
+    cmd "$@"
+  fi
+
+  # all done if this is a dry run
+  if [[ $is_dryrun ]]; then
+    return
+  fi
+
+  # if there's a redirect in args
+  if [[ "$*" =~ ">" ]]; then
+    # set $out to be the last argument
+    out="${!#}"
+
+    # remove the last two arguments from $@
+    local stop=$(($#-1))
+    set -- "${@:0:$stop}"
+  fi
+
+  "$@" > $out || ec=$?
+
+  if [[ -n "$ec" ]]; then
+    echo
+    fail -ec $ec "Command failed: ${*}"
+  fi
+}
+
+# usage -
+#    print help info
+#    get the list of options from the parse() function
+usage() {
+  local script text
+
+  define text <<EOF
+${ME} -- fetch some json then view it with jq
+
+Usage: ${ME} [OPTIONS] URL
+
+Arguments:
+     URL                   web address of the JSON file
+
+Options:
+EOF
+
+  define script <<'EOF'
+  # look within the case statement for all lines including two hash marks and the word "help"
+  /case/,/esac/ {
+    /##/ {
+      s/\) [^#]+##//  ; # remove everything between the paren and ##
+      s/help:/\t/     ; # replace the word help: with a tab
+      p               ; # print it
+    }
+  }
+EOF
+
+  printf "%s\n" "${text}"
+  sed -nEe "${script}" "${ROOTDIR}/${ME}" | column -ts $'\t'
+  echo
+
+  exit
+}
+
+# parse -
+#    handle CLI arguments
+#
+# NOTE:
+#    The list of options for the help screen is extracted from the list of
+#    patterns in the case statement, and the description of each is in a
+#    double-hash marked comment on the same line that contains the text "help:".
+#
+#    A tab is inserted between the option and the description where the world
+#    "help:" is, which means that anything before that will appear as part of
+#    the option usage. (For options with arguments.)
+#
+#    It relies on sed.
+#
+# Examples
+#    
+#    If the case statement contains these:
+#
+#    -a|--abc) : ;;  ## help: enable the abc feature
+#    -x|--xyz) : ;;  ## ARG help: use ARG for xyz
+#    
+#    Those options will be formatted in the help text like this:
+#
+#    -a|--abc          enable the abc feature
+#    -x|--xyz ARG      use ARG for xyz
+#    
+parse() {
+  local sn
+
+  while [[ $# -gt 0 ]]; do
+    arg="${1}" sn=1
+
+    case "${arg}" in
+      -o|--outfile) outfile="${2}" sn=2   ;;  ## FILE help: save json content to FILE
+      -h|--help)    usage                 ;;  ## help: display this help info
+      *)            url="${arg}"          ;;  
+    esac
+
+    shift $sn
+  done
+}
+
+main() {
+  local url mime_type status json
+
+  # parse CLI args
+  parse ${1:+"$@"}
+
+  # input validation
+  [[ -n "${url}" ]] || abort "Please provide a URL."
+
+  # download the content and headers to tmp files
+  curl --no-progress-meter "${url}" --output "${JSON_FILE}" --dump-header "${HEADER_FILE}" || abort "Request failed."
+
+  # get the status code from the header file and ensure it is 200
+  status=$(sed -nEe '/^HTTP/ { s,^HTTP[/0-9.]+ ,, ; s/[[:cntrl:]]// p ; }' "$HEADER_FILE")
+  [[ "${status}" =~ 200 ]] || abort "Request failed: '${status}'."
+
+  # get the mime type from the header file or the `file` command
+  mime_type="$(sed -nEe '/^content-type/I { s/^content-type: ([^;]+);?.*$/\1/I ; s/[[:cntrl:]]// p ; }' "$HEADER_FILE")"
+  [[ -n "${mime_type}" ]] || mime_type=$( file --brief "${JSON_FILE}" )
+
+  # ensure it's json
+  [[ "${mime_type}" =~ (json|JSON) ]] || abort "Mime type is not JSON but: '${mime_type%% }'."
+
+  # make sure there's something in the file
+  [[ -s "${JSON_FILE}" ]] || abort "The JSON content is blank."
+
+  # save it if the user said to
+  [[ ${outfile} ]] && cp "${JSON_FILE}" "${outfile}"
+
+  # show the contents
+  jq -C "." "${JSON_FILE}" | read -r json || abort "JSON formatting is invalid."
+
+  printf "%s\n" "$json" | less -RF
+}
+
+main ${1:+"$@"}

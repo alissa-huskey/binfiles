@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+#
+# Create an encrypted empty plain text file
+#
+
+ME="${0##*/}"
+
+set -Eeo pipefail # fail on errors, even within pipes
+
+abort() {
+  printf "\e[31mError\e[0m %s\n" "$*"
+  exit 1
+}
+
+# cmd - 
+#    print formatted command
+# usage: cmd text [text...]
+cmd() {
+  [[ -z $is_dryrun ]] && return
+  printf "\e[2m# %s\e[0m\n" "${*}"
+}
+
+# run -
+#    print command in dry run or very verbose mode
+#    and execute if not in dry run mode
+#
+# usage: run CMD...
+#        run CMD... ">" outfile
+run() {
+  local prev ec out=/dev/stdout
+
+  # collect from stdin if it's being piped here
+  [ -p /dev/stdin ] && prev="$( < /dev/stdin )"
+
+  # send piped output unformatted and append a '|'
+  if [ -p /dev/stdout ]; then
+    echo "$@" '|'
+
+  # otherwisse print the prevoious output if it exists
+  # followed by this command
+  else
+    cmd ${prev:+"$prev"} "$@"
+  fi
+
+  # all done if this is a dry run
+  [[ -n $is_dryrun ]] && return
+
+  # actually run the command
+  "$@"
+
+  if [[ -n "$ec" ]]; then
+    echo
+    abort "Command failed: ${*}"
+  fi
+}
+
+# define -
+#    define a variable using heredocs
+# usage: define var <<EOF
+#        ...
+#        EOF
+define() {
+   IFS=$'\n' read -r -d '' ${1} || true
+}
+
+# print help info
+usage() {
+  local text
+
+  define text <<EOF
+${ME} -- Create an encrypted empty plain text file
+
+Usage: ${ME} FILE[.gpg] [GPG_OPTS...]
+
+Arguments:
+
+     FILE[.gpg]                     what to name to file
+
+Options:
+
+     GPG_OPTS                       additional gpg options
+     -n|--dry-run                   print what would happen but don't do it
+     -h|--help                      show this help info
+
+Examples:
+
+  mkcrypt hello-world.txt.gpg      # create "hello-world.txt.gpg" with the default recipient
+  mkcrypt -r somebody ciao.txt     # create "ciao.txt.gpg" with the recipient: "somebody"
+  mkcrypt goodbye-cruel-world.txt  # create "goodbye-cruel-world.txt.gpg" with the default recipient
+
+EOF
+
+  echo "${text}"
+  exit
+}
+
+# handle CLI args
+parse() {
+  local sn arg
+
+  while [[ $# -gt 0 ]]; do
+    arg="${1}" sn=1
+
+    case "${arg}" in
+      -h|--help)      usage                   ;;
+      -n|--dry-run)   is_dryrun=true          ;;
+      *)
+        if [[ -z "${name}" ]]; then
+          name="${arg%%.gpg}"    
+        else
+          gpgopts+=( "${arg}" )
+        fi
+                                              ;;  
+    esac
+
+    shift $sn
+  done
+}
+
+main() {
+  local name outfile
+  local -a cmd gpgopts
+
+  parse ${1:+"$@"}
+
+  outfile="${name}.gpg"
+
+  [[ -z "${name}" ]] && abort "Filename required."
+  [[ -f "${outfile}" ]] && abort "File '${outfile}' already exists."
+
+  cmd=( gpg --encrypt --output "${name}.gpg" )
+  [[ ${#gpgopts[@]} -gt 0 ]] && cmd+=( "${gpgopts[@]}" )
+
+  run echo | run "${cmd[@]}"
+}
+
+main ${1:+"$@"}

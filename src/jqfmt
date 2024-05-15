@@ -1,0 +1,250 @@
+#!/bin/bash
+# jqfmt - format file with JQ
+
+set -Eeo pipefail # fail on errors, even within pipes
+set +o posix      # using some noncompliant process redirection features
+
+ME="${0##*/}"
+USAGE="[-u] [-v[v]] [-d] [jqargs...] [jqscript] file"
+
+# usage -
+#   print usage info and exit unless an argument is present
+# usage: usage [noexit]
+usage() {
+  local no_exit=${1:+true}
+  echo "usage: ${ME} ${USAGE}"
+
+  if [[ -z "$no_exit" ]]; then
+    exit
+  fi
+}
+
+# info -
+#    print info message if in verbose mode
+# usage: info text [text...]
+info() {
+  if ! [[ $is_verbose ]] ; then
+    return
+  fi
+
+  printf "\e[36m>\e[0m %s\n" "${*//$TMPDIR/\$TMPDIR/}"
+}
+
+# debug -
+#    print a formatted name/value pair if in debug mode
+# usage: debug name value
+debug() {
+  local name="$1" value="$2"
+  if ! [[ $is_debug ]] ; then
+    return
+  fi
+
+  printf "\e[33m%s\e[0m\t: %s\n" "$name" "${value//$TMPDIR/\$TMPDIR/}"
+}
+
+# run -
+#    print command in dry run or very verbose mode
+#    and execute if not in dry run mode
+#
+# usage: run CMD...
+#        run CMD... ">" outfile
+run() {
+  local num args=() out=/dev/stdout ec
+
+  # print command in dry run mode or very verbose mode
+  if [[ $is_dryrun ]] || [[ $is_verbose -eq 2 ]]; then
+    cmd "$@"
+  fi
+
+  # all done if this is a dry run
+  if [[ $is_dryrun ]]; then
+    return
+  fi
+
+  # if there's a redirect in args
+  if [[ "$*" =~ ">" ]]; then
+    # set $out to be the last argument
+    out="${!#}"
+
+    # remove the last two arguments from $@
+    local stop=$(($#-1))
+    set -- "${@:0:$stop}"
+  fi
+
+  "$@" > $out || ec=$?
+
+  if [[ -n "$ec" ]]; then
+    echo
+    fail -ec $ec "Command failed: ${*}"
+  fi
+}
+
+stacktrace() {
+  local frame=1 frames="$((${#BASH_LINENO[@]}-2))"
+
+  printf "\nStacktrace\n"
+  while read -r line func file < <(caller $frame); do
+    if [[ -z "$file" ]]; then
+      file="$func"
+      func=""
+    fi
+
+    # debug "frames" $frames
+    # debug "file" $file
+    # debug "func" $func
+    # debug "line" $line
+    # debug "frames" $frames
+
+    printf "  [%*s] %s:%s %s()\n" "${#frames}" "$frame" "${file//$HOME/~}" "$line" "$func"
+
+    ((frame++));
+  done
+  echo
+}
+
+# fail -
+#    for program failures
+#    exit with code 2 unless -ec CODE is specified
+#    and print error message
+#
+# usage: fail [-ec CODE] text [text...]
+fail() {
+  local ec=2
+
+  # extract -ec CODE from args and remove them from $@
+  if [[ "$1" == "-ec" ]]; then
+    ec=$2
+    set -- "${@:3:$#}"
+  fi
+
+  error_message ${1:+"$@"}
+  stacktrace
+  exit 2
+}
+
+# error -
+#    for user errors
+#    exit with code 1 and print error mesage
+# usage: error text [text...]
+error() {
+  error_message ${1:+"$@"}
+  echo
+  usage
+  exit 1
+}
+
+# error_message -
+#    print formatted error message
+# usage: error_message text [text...]
+error_message() {
+  printf "\e[31mError\e[0m %s\n" "${@//$TMPDIR/\$TMPDIR/}" >&2
+}
+
+# cmd - 
+#    print formatted command
+# usage: cmd text [text...]
+cmd() {
+  printf "\e[2m> %s\e[0m\n" "${*//$TMPDIR/\$TMPDIR/}"
+}
+
+# define -
+#    define a variable using heredocs
+# usage: define var <<EOF
+#        ...
+#        EOF
+define() {
+   IFS=$'\n' read -r -d '' ${1} || true
+}
+
+help() {
+  define text <<END
+
+  OPTIONS
+      -h|--help       help
+      -u|--dry-run    dry run mode
+      -d|--debug      debug mode
+      -v|--verbose    verbose mode
+      -vv             very verbose mode
+
+  All other arguments forwarded to jq.
+
+END
+
+  printf "\njqfmt - format file with JQ\n\n"
+
+  usage noexit
+
+  printf "\n%s\n\n" "$text"
+
+  exit 0
+}
+
+getargs() {
+  local -a args
+
+  while [[ $# -ne 0 ]]; do
+    case "$1" in
+      -h|--help)       help                                   ;;
+      -u|--dry-run)    is_dryrun=true                         ;;
+      -d|--debug)      is_debug=true                          ;;
+      -v|--verbose)    is_verbose=1                           ;;
+      -vv)             is_verbose=2                           ;;
+      -*)              flags+=( "$1" )                        ;;
+      *)               args+=( "$1" )                         ;;
+    esac
+
+    shift
+  done
+
+  for i in "${!args[@]}"; do
+    # if the file exists, script is already set,
+    # or filepath is blank and this is the last argument
+    if [[ -f "$arg" ]]                                      || \
+       [[ -n "$script" ]]                                   || \
+       [[ -z "$filepath" ]] && [[ $((i+1)) -eq ${#args[@]} ]]; then
+      filepath="${args[$i]}"
+
+    # otherwise
+    else
+      script="${args[$i]}"
+    fi
+  done
+}
+
+main() {
+  local tmp backup filepath flags=( "-M" ) script="." bkdir="${TMPDIR}jqfmt"
+
+  getargs ${1:+"$@"}
+
+  [[ -n "$filepath" ]] || error "Missing required argument: filepath"
+  [[ -f "$filepath" ]] || error "No such file: $filepath"
+  [[ -s "$filepath" ]] || error "File is empty: $filepath"
+
+
+  mkdir -p $bkdir || exit $?
+
+  tmp=$(mktemp -p "$bkdir" --suffix="-$filepath")
+  backup=$(mktemp -p "$bkdir" --suffix="-${filepath%.*}-backup.json")
+
+  { [[ -n "$backup" ]] && [[ -f "$backup" ]] ; } || fail "Failed to create backup file"
+  { [[ -n "$tmp" ]]    && [[ -f "$tmp" ]] ; }    || fail "Failed to create temp file"
+
+  {
+    debug "filepath" "$filepath"
+    debug "script" "$script"
+    debug "tmp" "$tmp"
+    debug "backup" "$backup"
+    debug "is_dryrun" "${is_dryrun-false}"
+    debug "is_verbose" "${is_verbose-false}"
+    debug "is_debug" "${is_debug-false}"
+  } | column -t -s $'\t'
+
+  cp "$filepath" "$backup" || exit $?
+  info "Backed up at: \"$backup\""
+
+  run jq ${flags[0]:+"${flags[@]}"} "${script}" "${filepath}" ">" $tmp
+
+  run mv "$tmp" "$filepath"
+}
+
+main ${1:+"$@"}

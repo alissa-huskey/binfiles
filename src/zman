@@ -1,0 +1,174 @@
+#!/usr/bin/env zsh
+#
+# zman - open a zsh manpage or search the main zsh manpage
+#
+
+set -Eeo pipefail # fail on errors, even within pipes
+
+ROOT=$(cd "${0%/*}/." && pwd -P)
+
+# print help info and exit
+usage() {
+  cat <<EOL
+
+zman - open a zsh manpage or a manpage for one of the builtins
+
+usage: 
+
+  zman [-l|--list] [-h]
+  zman CHAPTER|BUILTIN|FUNCTION
+
+OPTIONS:
+
+  -h|--help   show this help screen
+  -l|--list   list zsh man chapters
+
+EOL
+
+exit
+}
+
+# print a list of zsh man pages
+chapters() {
+  cat <<EOL
+
+ZSH Manual Chapters
+
+  roadmap   Informal introduction to the manual
+  misc      Anything not fitting into the other sections
+  expn      Zsh command and parameter expansion
+  param     Zsh parameters
+  options   Zsh options
+  builtins  Zsh built-in functions
+  zle       Zsh command line editing
+  compwid   Zsh completion widgets
+  compsys   Zsh completion system
+  compctl   Zsh completion control
+  modules   Zsh loadable modules
+  tcpsys    Zsh built-in TCP functions
+  zftpsys   Zsh built-in FTP client
+  contrib   Additional zsh functions and utilities
+  all       Meta-man page containing all of the above
+
+EOL
+
+exit
+}
+
+# parse CLI args
+parse() {
+  [[ -z "$1" ]] && usage
+
+  case $1 in
+    help|-h|--help) usage  ;;
+    -l|--list) chapters  ;;
+  esac
+}
+
+# return true if the zsh chapter exists
+chapter_exists() {
+  local -a chapters
+
+  chapters=( \
+    roadmap \
+    misc \
+    expn \
+    param \
+    options \
+    builtins \
+    zle \
+    compwid \
+    compsys \
+    compctl \
+    modules \
+    tcpsys \
+    zftpsys \
+    contrib \
+    all \
+  )
+
+  print -l "${chapters[@]}" | grep -qa "$1"
+}
+
+# run man for a particular zsh manpage
+# ie `man zshmisc`
+zshmanpage() {
+  man zsh$1
+}
+
+# open the full zsh manpage and search for the usage info for a command or
+# function.
+zshman_search() {
+  # NOTE: The runtime search pattern should look something like:
+  #
+  #       We want to match lines like the following:
+  #
+  #              builtin
+  #              command [ -pvV ]
+  #              cap    See the section `The zsh/cap Module' in zshmodules(1).
+  #              bye    Same as exit.
+  #
+  #
+  #       The pattern should look something like:
+  #
+  #       ^[ ]{7}cap(( \[.*\])|([ ]+(Same|See) .*))?$
+  #
+  #       # (this one only matches the first two)
+  #       ^[ ]{7}zmv( \[.*\])?$
+  #
+  #       Take note of:
+  #
+  #       - man passes the value of -P or the LESS environment variable to
+  #         less, which is then interpreted as a double-quoted string. (If I
+  #         understand correctly.) Therefore the argument must include literal
+  #         backslashes which will not be interpreted until less is called by
+  #         man.
+  #
+  #         In other words, you want the result of `echo "$pattern"` to work if
+  #         you cut and paste it into a less search.
+  #
+  #       - In the command `less +COMMAND`, less interperets a dollar sign to
+  #         mean "end of command". To include a literal dollar sign in 
+  #         COMMAND, you need to add the --use-backslashes option.
+  #
+  #       - Lines not currrently supported include:
+  #
+  #              compctl + command ...
+  #              for (( [expr1] ; [expr2] ; [expr3] )) do list done
+  #              expr -pcre-match pcre
+  #              stat ...
+  #              zsystem supports subcommand
+  #              echotc cap [ arg ... ]
+  #              watch <S> <Z> (WATCH <S>)
+  #              cdup   Change the remote directory to the one higher in the directory tree.
+  #              getat file point
+  #              zpty -t name
+  #              zfpcp lfile1 ... rdir
+  #
+  #       NAME
+  #              zshzftpsys - zftp function front-end
+  #         
+ 
+  local pattern
+
+  pattern='^[ ]{7}'
+  pattern+="${1}"
+  pattern+='(( \\[.*\\])|([ ]+(Same|See) .*))?\$'
+
+  # man -P "less --use-backslash +/'${pattern}'" zshall
+  LESS="--use-backslash +/${pattern}" man zshall
+}
+
+main() {
+  local name="$1"
+
+  parse "$1"
+
+  if chapter_exists "${name}"; then
+    zshmanpage "${name}"
+  else
+    zshman_search "${name}"
+  fi
+}
+
+main ${1:+"$@"}
